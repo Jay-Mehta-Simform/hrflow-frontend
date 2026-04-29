@@ -1,0 +1,33 @@
+<div class="page-header">
+  <h1>My Leave Balance — {{ currentYear }}</h1>
+</div>
+<div class="balance-grid">
+  @for (card of balanceCards(); track card.leaveTypeName) {
+    <mat-card class="balance-card">
+      <mat-card-header>
+        <mat-card-title>{{ card.leaveTypeName }}</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="stat-row">
+          <span>Allocated</span><strong>{{ card.totalAllocated }} days</strong>
+        </div>
+        @if (card.carryForward > 0) {
+          <div class="stat-row">
+            <span>Carry Forward</span><strong>{{ card.carryForward }} days</strong>
+          </div>
+        }
+        <div class="stat-row">
+          <span>Used</span><strong>{{ card.used }} days</strong>
+        </div>
+        <mat-divider style="margin: 8px 0;" />
+        <div class="stat-row highlight">
+          <span>Remaining</span><strong>{{ card.remaining }} days</strong>
+        </div>
+        <mat-progress-bar mode="determinate" [value]="getUsagePercent(card)" style="margin-top: 8px;" />
+      </mat-card-content>
+    </mat-card>
+  }
+  @if (balanceCards().length === 0) {
+    <p>No leave balances found for this year.</p>
+  }
+</div>

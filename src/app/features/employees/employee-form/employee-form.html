@@ -1,0 +1,60 @@
+<div class="page-header"><h1>Add Employee</h1></div>
+<mat-card style="max-width: 600px;">
+  <mat-card-content>
+    <form [formGroup]="form" (ngSubmit)="onSubmit()">
+      <mat-form-field class="full-width">
+        <mat-label>First Name</mat-label>
+        <input matInput formControlName="firstName" />
+        @if (form.get('firstName')?.invalid && form.get('firstName')?.touched) {
+          <mat-error>First name is required</mat-error>
+        }
+      </mat-form-field>
+      <mat-form-field class="full-width">
+        <mat-label>Last Name</mat-label>
+        <input matInput formControlName="lastName" />
+        @if (form.get('lastName')?.invalid && form.get('lastName')?.touched) {
+          <mat-error>Last name is required</mat-error>
+        }
+      </mat-form-field>
+      <mat-form-field class="full-width">
+        <mat-label>Email</mat-label>
+        <input matInput type="email" formControlName="email" />
+        @if (form.get('email')?.invalid && form.get('email')?.touched) {
+          <mat-error>Valid email is required</mat-error>
+        }
+      </mat-form-field>
+      <mat-form-field class="full-width">
+        <mat-label>Designation</mat-label>
+        <input matInput formControlName="designation" />
+      </mat-form-field>
+      <mat-form-field class="full-width">
+        <mat-label>Department</mat-label>
+        <mat-select formControlName="departmentId">
+          @for (dept of departments(); track dept.id) {
+            <mat-option [value]="dept.id">{{ dept.name }}</mat-option>
+          }
+        </mat-select>
+        @if (form.get('departmentId')?.invalid && form.get('departmentId')?.touched) {
+          <mat-error>Department is required</mat-error>
+        }
+      </mat-form-field>
+      <mat-form-field class="full-width">
+        <mat-label>Joining Date</mat-label>
+        <input matInput [matDatepicker]="picker" formControlName="joiningDate" />
+        <mat-datepicker-toggle matIconSuffix [for]="picker" />
+        <mat-datepicker #picker />
+      </mat-form-field>
+      <mat-form-field class="full-width">
+        <mat-label>Initial Password</mat-label>
+        <input matInput type="password" formControlName="password" />
+        @if (form.get('password')?.invalid && form.get('password')?.touched) {
+          <mat-error>Password is required (min 6 characters)</mat-error>
+        }
+      </mat-form-field>
+      <div style="display: flex; gap: 12px;">
+        <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid">Save</button>
+        <a mat-button routerLink="/employees">Cancel</a>
+      </div>
+    </form>
+  </mat-card-content>
+</mat-card>

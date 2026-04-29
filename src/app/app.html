@@ -1,0 +1,43 @@
+@if (auth.isLoggedIn()) {
+  <mat-sidenav-container class="app-container">
+    <mat-sidenav [opened]="sidenavOpen()" mode="side" class="app-sidenav">
+      <div class="sidenav-header">
+        <span class="app-logo">HRFlow</span>
+      </div>
+      <mat-divider />
+      <mat-nav-list>
+        @for (item of navItems(); track item.route) {
+          <a mat-list-item
+             [routerLink]="item.route"
+             routerLinkActive="active-link"
+             [routerLinkActiveOptions]="{ exact: false }">
+            <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
+            <span matListItemTitle>{{ item.label }}</span>
+          </a>
+        }
+      </mat-nav-list>
+      <mat-divider />
+      <div class="sidenav-footer">
+        <p class="user-email">{{ auth.user()?.email }}</p>
+        <p class="user-role">{{ auth.user()?.role }}</p>
+        <button mat-stroked-button color="warn" (click)="auth.logout()">
+          <mat-icon>logout</mat-icon> Logout
+        </button>
+      </div>
+    </mat-sidenav>
+
+    <mat-sidenav-content>
+      <mat-toolbar color="primary" class="app-toolbar">
+        <button mat-icon-button (click)="toggleSidenav()">
+          <mat-icon>menu</mat-icon>
+        </button>
+        <span class="toolbar-title">HRFlow — Employee &amp; Leave Management</span>
+      </mat-toolbar>
+      <main class="main-content">
+        <router-outlet />
+      </main>
+    </mat-sidenav-content>
+  </mat-sidenav-container>
+} @else {
+  <router-outlet />
+}
