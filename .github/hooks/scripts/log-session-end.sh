@@ -1,102 +1,77 @@
 #!/usr/bin/env bash
-# Log AI responses to the Copilot history file
-
+# Append Copilot responses (from transcript) into copilot-history.json at project root
 set -euo pipefail
 
 INPUT=$(cat)
+LOG_FILE="copilot-history.json"
 
-LOGS_DIR=".github/logs"
-mkdir -p "$LOGS_DIR"
-LOG_FILE="$LOGS_DIR/copilot-history.json"
-
-make_log_writable() {
-  [ -f "$LOG_FILE" ] && chmod u+w "$LOG_FILE" 2>/dev/null || true
-}
-
-make_log_readonly() {
-  [ -f "$LOG_FILE" ] && chmod a-w "$LOG_FILE" 2>/dev/null || true
-}
-
-ensure_log_file() {
-  if [ ! -f "$LOG_FILE" ]; then
-    jq -n '{ sessions: [] }' > "$LOG_FILE"
-  fi
-}
-
-make_log_writable
-ensure_log_file
-trap make_log_readonly EXIT
-
-SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // "unknown"')
-TIMESTAMP=$(echo "$INPUT" | jq -r '.timestamp // ""')
-[ -z "$TIMESTAMP" ] && TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-CWD=$(echo "$INPUT" | jq -r '.cwd // "unknown"')
-TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // ""')
-
-USERNAME=$(whoami)
-USER_EMAIL=$(git config user.email 2>/dev/null || echo "unknown@localhost")
-WORKSPACE=$(basename "$CWD" 2>/dev/null || echo "unknown")
-
-# Turn count = how many turns already have a response (to find correct slice)
-RESPONSE_COUNT=$(jq --arg sid "$SESSION_ID" '
-  ([ .sessions[] | select(.id == $sid) ] | first | [.turns[] | select(has("response"))] | length) // 0
-' "$LOG_FILE" 2>/dev/null || echo "0")
-
-# Tools whose args are too large/noisy to log
-HEAVY_TOOLS='apply_patch|create_file|edit_notebook_file|run_in_terminal|create_new_jupyter_notebook'
-
-AI_RESPONSE=""
-TOOL_NAMES="[]"
-
-if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
-  TRANSCRIPT=$(jq -s '.' "$TRANSCRIPT_PATH" 2>/dev/null || echo "[]")
-
-  # Find the slice for this turn (between Nth and (N+1)th user.message)
-  USER_INDEXES=$(echo "$TRANSCRIPT" | jq -r 'to_entries[] | select(.value.type == "user.message") | .key' 2>/dev/null || true)
-  START_INDEX=$(printf '%s\n' "$USER_INDEXES" | sed -n "$((RESPONSE_COUNT + 1))p")
-
-  if [ -n "$START_INDEX" ]; then
-    END_INDEX=$(printf '%s\n' "$USER_INDEXES" | sed -n "$((RESPONSE_COUNT + 2))p")
-    [ -z "$END_INDEX" ] && END_INDEX=$(echo "$TRANSCRIPT" | jq 'length')
-
-    TURN_TRANSCRIPT=$(echo "$TRANSCRIPT" | jq -c \
-      --argjson s "$START_INDEX" --argjson e "$END_INDEX" '
-      [to_entries[] | select(.key >= $s and .key < $e) | .value]
-    ' 2>/dev/null || echo '[]')
-  else
-    TURN_TRANSCRIPT=$(echo "$TRANSCRIPT" | jq -c '.' 2>/dev/null || echo '[]')
-  fi
-
-  # Last assistant message in this turn
-  AI_RESPONSE=$(echo "$TURN_TRANSCRIPT" | jq -r '
-    ([.[] | select(.type == "assistant.message") | .data.content] | last) // ""
-  ' 2>/dev/null || echo "")
-
-  # Tool names only (no args)
-  TOOL_NAMES=$(echo "$TURN_TRANSCRIPT" | jq -c '
-    [.[] | select(.type == "tool.call") | .data.toolName] | unique
-  ' 2>/dev/null || echo '[]')
+if [ ! -f "$LOG_FILE" ]; then
+  echo '{"sessions":[]}' > "$LOG_FILE"
 fi
 
-# Patch the last turn in this session: add response + tools, update ended
-jq \
-  --arg sid "$SESSION_ID" \
-  --arg ended "$TIMESTAMP" \
-  --arg response "$AI_RESPONSE" \
-  --argjson tools "$TOOL_NAMES" \
-  '
-    .sessions |= map(
-      if .id == $sid then
-        .ended = $ended |
-        .turns[-1] += {response: $response} +
-          (if ($tools | length) > 0 then {tools: $tools} else {} end)
-      else . end
-    )
-  ' "$LOG_FILE" > "$LOG_FILE.tmp" && mv "$LOG_FILE.tmp" "$LOG_FILE"
+SESSION_ID=$(echo "$INPUT"      | jq -r '.session_id      // "unknown"')
+TIMESTAMP=$(echo "$INPUT"       | jq -r '.timestamp       // ""')
+[ -z "$TIMESTAMP" ] && TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-# Mark as legitimate hook write and stage
-touch "$(dirname "$LOG_FILE")/.hook-staged"
-git add "$LOG_FILE" 2>/dev/null || true
+TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // ""')
+
+# Tools whose args are too large/noisy to store
+HEAVY_TOOLS='create_file|edit_notebook_file|run_in_terminal|apply_patch|multi_replace_string_in_file|replace_string_in_file'
+
+if [ -z "$TRANSCRIPT_PATH" ] || [ ! -f "$TRANSCRIPT_PATH" ]; then
+  exit 0
+fi
+
+TRANSCRIPT=$(jq -s '.' "$TRANSCRIPT_PATH" 2>/dev/null || echo "[]")
+
+# How many turns in the log already have a response recorded
+RESPONSE_COUNT=$(jq --arg sid "$SESSION_ID" '
+  ([ .sessions[] | select(.id == $sid) ] | first | [.turns[]? | select(has("response"))] | length) // 0
+' "$LOG_FILE" 2>/dev/null || echo "0")
+
+# Extract AI assistant messages from transcript (skip already-recorded ones)
+AI_MESSAGES=$(echo "$TRANSCRIPT" | jq --argjson skip "$RESPONSE_COUNT" '
+  [.[] | select(.type == "assistant.message")] | .[$skip:]
+')
+
+MSG_COUNT=$(echo "$AI_MESSAGES" | jq 'length')
+
+if [ "$MSG_COUNT" -eq 0 ]; then
+  exit 0
+fi
+
+for i in $(seq 0 $((MSG_COUNT - 1))); do
+  MSG=$(echo "$AI_MESSAGES" | jq --argjson i "$i" '.[$i]')
+
+  AI_RESPONSE=$(echo "$MSG" | jq -r '.data.content // .data.text // ""' 2>/dev/null || echo "")
+
+  # Tool names used in this response (skip heavy tools' args, just record names)
+  TOOL_NAMES=$(echo "$MSG" | jq --arg heavy "$HEAVY_TOOLS" '
+    [(.data.tool_calls // [])[] | .function.name] | unique
+  ' 2>/dev/null || echo "[]")
+
+  TURN_OFFSET=$((RESPONSE_COUNT + i + 1))
+
+  jq \
+    --arg     sid      "$SESSION_ID" \
+    --argjson offset   "$TURN_OFFSET" \
+    --arg     response "$AI_RESPONSE" \
+    --argjson tools    "$TOOL_NAMES" \
+    '
+      .sessions |= map(
+        if .id == $sid then
+          .turns |= (
+            to_entries | map(
+              if .key == ($offset - 1) then
+                .value += {response: $response} +
+                  (if ($tools | length) > 0 then {tools_used: $tools} else {} end)
+              else .
+              end
+            ) | from_entries
+          )
+        else . end
+      )
+    ' "$LOG_FILE" > "$LOG_FILE.tmp" && mv "$LOG_FILE.tmp" "$LOG_FILE"
+done
 
 echo '{"continue": true}'
