@@ -40,20 +40,6 @@ export const routes: Routes = [
             (m) => m.LEAVE_REQUEST_ROUTES,
           ),
       },
-      {
-        path: 'calendar',
-        canActivate: [roleGuard],
-        data: { roles: ['hr_admin', 'manager'] },
-        loadChildren: () =>
-          import('./features/calendar/calendar.routes').then((m) => m.CALENDAR_ROUTES),
-      },
-      {
-        path: 'reports',
-        canActivate: [roleGuard],
-        data: { roles: ['hr_admin'] },
-        loadChildren: () =>
-          import('./features/reports/reports.routes').then((m) => m.REPORT_ROUTES),
-      },
     ],
   },
   {
@@ -61,5 +47,5 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/auth/unauthorized/unauthorized').then((m) => m.UnauthorizedComponent),
   },
-  { path: '**', redirectTo: '/reports' },
+  { path: '**', redirectTo: '/leave-requests' },
 ];

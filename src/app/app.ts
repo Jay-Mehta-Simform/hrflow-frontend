@@ -20,7 +20,6 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', icon: 'bar_chart', route: '/reports', roles: ['hr_admin'] },
   { label: 'Employees', icon: 'people', route: '/employees', roles: ['hr_admin', 'manager'] },
   { label: 'Departments', icon: 'business', route: '/departments', roles: ['hr_admin'] },
   {
@@ -35,13 +34,6 @@ const NAV_ITEMS: NavItem[] = [
     route: '/leave-requests',
     roles: ['hr_admin', 'manager', 'employee'],
   },
-  {
-    label: 'Team Calendar',
-    icon: 'calendar_month',
-    route: '/calendar',
-    roles: ['hr_admin', 'manager'],
-  },
-  { label: 'Reports', icon: 'summarize', route: '/reports/leave-summary', roles: ['hr_admin'] },
 ];
 
 @Component({
