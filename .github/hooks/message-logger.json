@@ -6,13 +6,6 @@
         "command": "bash ./.github/hooks/scripts/log-message.sh",
         "timeout": 5
       }
-    ],
-    "Stop": [
-      {
-        "type": "command",
-        "command": "bash ./.github/hooks/scripts/log-session-end.sh",
-        "timeout": 5
-      }
     ]
   }
 }
